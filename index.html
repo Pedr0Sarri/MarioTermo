@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12172b">
+<title>MarioTermo — Personagem do Dia</title>
+<style>
+  :root {
+    --bg: #12172b;
+    --panel: #1b2240;
+    --panel-2: #141a33;
+    --line: #2d3763;
+    --text: #f1f3fb;
+    --muted: #98a2c9;
+    --accent: #e5352b;
+    --gold: #fbd000;
+    --ok: #2f9e58;
+    --near: #c98f1f;
+    --miss: #343d66;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh; min-height: 100dvh;
+    padding: max(14px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(32px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  main { width: 100%; max-width: 720px; margin: 0 auto; }
+
+  header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  h1 { margin: 0; font-size: 1.45rem; letter-spacing: -0.02em; line-height: 1.1; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: .78rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .icon-btn {
+    width: 44px; height: 44px; flex: none; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); font-size: 1.1rem; font-weight: 700; cursor: pointer;
+  }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+
+  /* Status: tentativas e dicas */
+  .tries { display: flex; gap: 5px; }
+  .tries i { flex: 1; height: 8px; border-radius: 4px; background: var(--miss); }
+  .tries i.used { background: var(--accent); }
+  .tries i.win { background: var(--ok); }
+  .status-line { display: flex; justify-content: space-between; font-size: .82rem; color: var(--muted); margin-top: 8px; }
+  .hints { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .hints li { font-size: .88rem; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); border: 1px dashed var(--line); color: var(--muted); }
+  .hints li.on { border-style: solid; border-color: var(--gold); color: var(--text); }
+  .hints li b { color: var(--gold); }
+
+  /* Silhueta: só aparece se existir img/<nome>.png */
+  .art { display: none; width: 132px; height: 132px; margin: 12px auto 0; border-radius: 12px; background: var(--panel-2);
+         border: 1px solid var(--line); place-items: center; overflow: hidden; }
+  .art.show { display: grid; }
+  .art img { max-width: 112px; max-height: 112px; object-fit: contain; transition: filter .6s; }
+  .art img.shadow { filter: brightness(0) invert(.3); }
+  .art span { font-size: 3rem; font-weight: 700; color: var(--line); }
+
+  /* Campo de palpite: fica preso no topo ao rolar */
+  .guess-bar { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 0; margin: 0 0 4px; }
+  form { display: flex; gap: 8px; position: relative; }
+  input[type=text] {
+    flex: 1; min-width: 0; height: 50px; padding: 0 14px; border-radius: 11px; border: 2px solid var(--line);
+    background: var(--panel); color: var(--text); font-size: 16px; /* 16px evita zoom automático no iOS */
+    outline: none; -webkit-appearance: none; appearance: none;
+  }
+  input[type=text]:focus { border-color: var(--gold); }
+  button.primary {
+    height: 50px; padding: 0 18px; border-radius: 11px; border: 0; background: var(--accent); color: #fff;
+    font-weight: 700; font-size: 1rem; cursor: pointer;
+  }
+  button:disabled, input:disabled { opacity: .5; }
+  .suggest {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+    max-height: 244px; overflow-y: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 12px 30px rgba(0,0,0,.45);
+  }
+  .suggest:empty { display: none; }
+  .suggest li { min-height: 46px; display: flex; align-items: center; padding: 0 12px; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  .suggest li:hover, .suggest li.active { background: var(--miss); }
+  .msg { min-height: 1.2em; margin: 6px 2px 0; font-size: .85rem; color: #ff8a80; }
+
+  /* Resultado */
+  .result { display: none; text-align: center; }
+  .result.show { display: block; }
+  .result h2 { margin: 0 0 4px; font-size: 1.25rem; }
+  .result p { margin: 0 0 12px; color: var(--muted); font-size: .9rem; line-height: 1.45; }
+  .result strong { color: var(--text); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .stats div { background: var(--panel-2); border-radius: 9px; padding: 8px 2px; }
+  .stats b { display: block; font-size: 1.25rem; }
+  .stats small { color: var(--muted); font-size: .68rem; }
+  .result button.primary { width: 100%; }
+  textarea { width: 100%; margin-top: 10px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+             border-radius: 9px; padding: 10px; font: inherit; font-size: 16px; display: none; }
+
+  /* Palpites: cartões com 6 pistas (3 colunas no celular, 6 em telas largas) */
+  .guess { margin-bottom: 10px; }
+  .gname { font-weight: 700; font-size: 1rem; margin: 0 2px 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  .gname small { color: var(--muted); font-weight: 400; font-size: .75rem; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .tile {
+    border-radius: 9px; padding: 7px 4px; min-height: 58px; background: var(--miss);
+    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+    animation: pop .3s ease both;
+  }
+  .tile small { font-size: .62rem; text-transform: uppercase; letter-spacing: .05em; opacity: .75; margin-bottom: 2px; }
+  .tile b { font-size: .82rem; line-height: 1.15; overflow-wrap: anywhere; }
+  .tile.ok { background: var(--ok); }
+  .tile.near { background: var(--near); }
+  @keyframes pop { from { transform: scale(.88); opacity: 0; } to { transform: none; opacity: 1; } }
+  .empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 18px 0 6px; margin: 0; }
+
+  .legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: .76rem; color: var(--muted); margin: 14px 2px 0; }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  footer { color: var(--muted); font-size: .7rem; text-align: center; margin-top: 22px; line-height: 1.5; }
+
+  /* Janela "Como jogar" */
+  .modal { position: fixed; inset: 0; z-index: 50; background: rgba(8,10,22,.78); display: none; align-items: flex-end; justify-content: center; }
+  .modal.show { display: flex; }
+  .sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 0 0; width: 100%; max-width: 720px;
+           max-height: 86dvh; overflow-y: auto; padding: 18px 16px max(18px, env(safe-area-inset-bottom)); }
+  .sheet h2 { margin: 0 0 10px; font-size: 1.15rem; }
+  .sheet p, .sheet li { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+  .sheet ul { padding-left: 18px; margin: 8px 0 14px; }
+  .sheet strong { color: var(--text); }
+  .sheet button { width: 100%; }
+
+  @media (min-width: 640px) {
+    h1 { font-size: 1.8rem; }
+    .tiles { grid-template-columns: repeat(6, 1fr); }
+    .tile b { font-size: .88rem; }
+    .modal { align-items: center; }
+    .sheet { border-radius: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .tile { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Mario<span>Termo</span></h1>
+      <div class="sub"><span id="date"></span> · próximo em <span id="countdown">--:--:--</span></div>
+    </div>
+    <button class="icon-btn" id="helpBtn" aria-label="Como jogar">?</button>
+  </header>
+
+  <section class="card">
+    <div class="tries" id="tries"></div>
+    <div class="status-line"><span id="triesText"></span><span id="poolText"></span></div>
+    <div class="art" id="art"><span>?</span></div>
+    <ul class="hints">
+      <li id="hint1"></li>
+      <li id="hint2"></li>
+    </ul>
+  </section>
+
+  <section class="card result" id="result">
+    <h2 id="resTitle"></h2>
+    <p id="resText"></p>
+    <div class="stats">
+      <div><b id="stPlayed">0</b><small>Jogos</small></div>
+      <div><b id="stWin">0%</b><small>Vitórias</small></div>
+      <div><b id="stStreak">0</b><small>Sequência</small></div>
+      <div><b id="stBest">0</b><small>Recorde</small></div>
+    </div>
+    <button class="primary" id="share">Compartilhar resultado</button>
+    <textarea id="shareBox" rows="8" readonly></textarea>
+  </section>
+
+  <div class="guess-bar">
+    <form id="form" autocomplete="off">
+      <input type="text" id="guess" placeholder="Nome do personagem" aria-label="Nome do personagem"
+             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="send">
+      <button type="submit" class="primary" id="send">Tentar</button>
+      <ul class="suggest" id="suggest"></ul>
+    </form>
+    <p class="msg" id="msg" role="status"></p>
+  </div>
+
+  <section id="board"></section>
+  <p class="empty" id="empty">Nenhum palpite ainda. Comece por um personagem conhecido, como Mario ou Bowser.</p>
+
+  <div class="legend">
+    <span><i style="background:var(--ok)"></i>Igual</span>
+    <span><i style="background:var(--near)"></i>Ano próximo (até 3 anos)</span>
+    <span><i style="background:var(--miss)"></i>Diferente</span>
+    <span>↑ ↓ a resposta é mais nova / mais antiga</span>
+  </div>
+
+  <footer>
+    Projeto de fã, sem fins comerciais. Mario e os personagens citados são marcas da Nintendo.<br>
+    Este jogo não é afiliado à Nintendo.
+  </footer>
+</main>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="sheet">
+    <h2 id="helpTitle">Como jogar</h2>
+    <p>Descubra o personagem do dia do universo Mario em até <strong>6 tentativas</strong>. Todo mundo recebe o mesmo personagem, e ele muda à meia-noite.</p>
+    <ul>
+      <li><strong>Espécie:</strong> Humano, Koopa, Toad, Kong...</li>
+      <li><strong>Papel:</strong> Herói, Aliado, Vilão ou Inimigo comum.</li>
+      <li><strong>Série:</strong> a franquia do personagem (Super Mario, Donkey Kong, Yoshi, Wario...).</li>
+      <li><strong>Plataforma:</strong> o console do jogo de estreia.</li>
+      <li><strong>Ano:</strong> o ano de estreia. A seta mostra se a resposta é mais nova (↑) ou mais antiga (↓).</li>
+      <li><strong>MK8 Deluxe:</strong> se é piloto jogável em Mario Kart 8 Deluxe (com os DLCs).</li>
+    </ul>
+    <p>Verde significa igual. Amarelo, no ano, significa diferença de até 3 anos. Depois de 3 erros aparecem a primeira letra e a silhueta (quando houver imagem); depois de 5, o jogo de estreia.</p>
+    <button class="primary" id="closeHelp">Entendi</button>
+  </div>
+</div>
+
+<script>
+// ---------- Base de personagens ----------
+// [nome, espécie, papel, série, plataforma de estreia, ano de estreia, jogo de estreia, jogável em Mario Kart 8 Deluxe]
+const CHARS = [
+  ["Mario","Humano","Herói","Super Mario","Arcade",1981,"Donkey Kong",1],
+  ["Luigi","Humano","Herói","Super Mario","Arcade",1983,"Mario Bros.",1],
+  ["Peach","Humano","Aliado","Super Mario","NES",1985,"Super Mario Bros.",1],
+  ["Daisy","Humano","Aliado","Super Mario","Game Boy",1989,"Super Mario Land",1],
+  ["Rosalina","Humano","Aliado","Super Mario","Wii",2007,"Super Mario Galaxy",1],
+  ["Pauline","Humano","Aliado","Super Mario","Arcade",1981,"Donkey Kong",1],
+  ["Toad","Toad","Aliado","Super Mario","NES",1985,"Super Mario Bros.",1],
+  ["Toadette","Toad","Aliado","Super Mario","GameCube",2003,"Mario Kart: Double Dash!!",1],
+  ["Toadsworth","Toad","Aliado","Super Mario","GameCube",2002,"Super Mario Sunshine",0],
+  ["Captain Toad","Toad","Herói","Super Mario","Wii",2007,"Super Mario Galaxy",0],
+  ["Yoshi","Yoshi","Herói","Yoshi","SNES",1990,"Super Mario World",1],
+  ["Birdo","Birdo","Aliado","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",1],
+  ["Baby Mario","Humano","Aliado","Yoshi","SNES",1995,"Yoshi's Island",1],
+  ["Poochy","Cão","Aliado","Yoshi","SNES",1995,"Yoshi's Island",0],
+  ["Kamek","Magikoopa","Vilão","Yoshi","SNES",1995,"Yoshi's Island",1],
+  ["Bowser","Koopa","Vilão","Super Mario","NES",1985,"Super Mario Bros.",1],
+  ["Bowser Jr.","Koopa","Vilão","Super Mario","GameCube",2002,"Super Mario Sunshine",1],
+  ["Dry Bowser","Koopa","Vilão","Super Mario","Nintendo DS",2006,"New Super Mario Bros.",1],
+  ["Ludwig von Koopa","Koopa","Vilão","Super Mario","NES",1988,"Super Mario Bros. 3",1],
+  ["Boom Boom","Koopa","Vilão","Super Mario","NES",1988,"Super Mario Bros. 3",0],
+  ["Pom Pom","Koopa","Vilão","Super Mario","Nintendo 3DS",2011,"Super Mario 3D Land",0],
+  ["Koopa Troopa","Koopa","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",1],
+  ["Hammer Bro","Koopa","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Lakitu","Koopa","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",1],
+  ["Dry Bones","Koopa","Inimigo","Super Mario","NES",1988,"Super Mario Bros. 3",1],
+  ["Chargin' Chuck","Koopa","Inimigo","Super Mario","SNES",1990,"Super Mario World",0],
+  ["Goomba","Goomba","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Piranha Plant","Planta Piranha","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Petey Piranha","Planta Piranha","Vilão","Super Mario","GameCube",2002,"Super Mario Sunshine",1],
+  ["Bullet Bill","Bullet Bill","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Blooper","Blooper","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Cheep Cheep","Cheep Cheep","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Buzzy Beetle","Buzzy Beetle","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Spiny","Spiny","Inimigo","Super Mario","NES",1985,"Super Mario Bros.",0],
+  ["Shy Guy","Shy Guy","Inimigo","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",1],
+  ["Bob-omb","Bob-omb","Inimigo","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",0],
+  ["Pokey","Pokey","Inimigo","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",0],
+  ["Wart","Sapo","Vilão","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",0],
+  ["Mouser","Rato","Vilão","Super Mario","NES",1987,"Yume Kōjō: Doki Doki Panic",0],
+  ["Boo","Boo","Inimigo","Super Mario","NES",1988,"Super Mario Bros. 3",0],
+  ["Chain Chomp","Chain Chomp","Inimigo","Super Mario","NES",1988,"Super Mario Bros. 3",0],
+  ["Thwomp","Thwomp","Inimigo","Super Mario","NES",1988,"Super Mario Bros. 3",0],
+  ["Spike","Spike","Inimigo","Super Mario","NES",1988,"Super Mario Bros. 3",0],
+  ["Wiggler","Wiggler","Inimigo","Super Mario","SNES",1990,"Super Mario World",1],
+  ["Monty Mole","Monty Mole","Inimigo","Super Mario","SNES",1990,"Super Mario World",0],
+  ["Whomp","Whomp","Inimigo","Super Mario","Nintendo 64",1996,"Super Mario 64",0],
+  ["King Bob-omb","Bob-omb","Vilão","Super Mario","Nintendo 64",1996,"Super Mario 64",0],
+  ["Foreman Spike","Humano","Vilão","Super Mario","NES",1985,"Wrecking Crew",0],
+  ["Tatanga","Alienígena","Vilão","Super Mario","Game Boy",1989,"Super Mario Land",0],
+  ["Geno","Boneco","Herói","Super Mario","SNES",1996,"Super Mario RPG",0],
+  ["Mallow","Nimbus","Herói","Super Mario","SNES",1996,"Super Mario RPG",0],
+  ["F.L.U.D.D.","Máquina","Aliado","Super Mario","GameCube",2002,"Super Mario Sunshine",0],
+  ["Luma","Luma","Aliado","Super Mario","Wii",2007,"Super Mario Galaxy",0],
+  ["Honey Queen","Abelha","Aliado","Super Mario","Wii",2007,"Super Mario Galaxy",0],
+  ["Lubba","Luma","Aliado","Super Mario","Wii",2010,"Super Mario Galaxy 2",0],
+  ["Plessie","Dinossauro","Aliado","Super Mario","Wii U",2013,"Super Mario 3D World",0],
+  ["Cappy","Bonneter","Aliado","Super Mario","Switch",2017,"Super Mario Odyssey",0],
+  ["Madame Broode","Coelho","Vilão","Super Mario","Switch",2017,"Super Mario Odyssey",0],
+  ["Prince Florian","Lagarta","Aliado","Super Mario","Switch",2023,"Super Mario Bros. Wonder",0],
+  ["Talking Flower","Flor","Aliado","Super Mario","Switch",2023,"Super Mario Bros. Wonder",0],
+  ["Waluigi","Humano","Vilão","Super Mario","Nintendo 64",2000,"Mario Tennis",1],
+  ["Wario","Humano","Vilão","Wario","Game Boy",1992,"Super Mario Land 2: 6 Golden Coins",1],
+  ["Captain Syrup","Humano","Vilão","Wario","Game Boy",1994,"Wario Land: Super Mario Land 3",0],
+  ["Mona","Humano","Aliado","Wario","Game Boy Advance",2003,"WarioWare, Inc.: Mega Microgame$!",0],
+  ["Ashley","Humano","Aliado","Wario","Nintendo DS",2004,"WarioWare: Touched!",0],
+  ["Donkey Kong","Kong","Herói","Donkey Kong","Arcade",1981,"Donkey Kong",1],
+  ["Diddy Kong","Kong","Herói","Donkey Kong","SNES",1994,"Donkey Kong Country",1],
+  ["Dixie Kong","Kong","Herói","Donkey Kong","SNES",1995,"Donkey Kong Country 2",0],
+  ["Funky Kong","Kong","Aliado","Donkey Kong","SNES",1994,"Donkey Kong Country",1],
+  ["Cranky Kong","Kong","Aliado","Donkey Kong","SNES",1994,"Donkey Kong Country",0],
+  ["King K. Rool","Kremling","Vilão","Donkey Kong","SNES",1994,"Donkey Kong Country",0],
+  ["King Boo","Boo","Vilão","Luigi's Mansion","GameCube",2001,"Luigi's Mansion",1],
+  ["Professor E. Gadd","Humano","Aliado","Luigi's Mansion","GameCube",2001,"Luigi's Mansion",0],
+  ["Polterpup","Fantasma","Aliado","Luigi's Mansion","Nintendo 3DS",2013,"Luigi's Mansion: Dark Moon",0],
+  ["Goombario","Goomba","Aliado","Paper Mario","Nintendo 64",2000,"Paper Mario",0],
+  ["Kammy Koopa","Magikoopa","Vilão","Paper Mario","Nintendo 64",2000,"Paper Mario",0],
+  ["Goombella","Goomba","Aliado","Paper Mario","GameCube",2004,"Paper Mario: The Thousand-Year Door",0],
+  ["Koops","Koopa","Aliado","Paper Mario","GameCube",2004,"Paper Mario: The Thousand-Year Door",0],
+  ["Olivia","Origami","Aliado","Paper Mario","Switch",2020,"Paper Mario: The Origami King",0],
+  ["King Olly","Origami","Vilão","Paper Mario","Switch",2020,"Paper Mario: The Origami King",0],
+  ["Fawful","Beanish","Vilão","Mario & Luigi","Game Boy Advance",2003,"Mario & Luigi: Superstar Saga",0],
+  ["Cackletta","Beanish","Vilão","Mario & Luigi","Game Boy Advance",2003,"Mario & Luigi: Superstar Saga",0],
+  ["Starlow","Star Sprite","Aliado","Mario & Luigi","Nintendo DS",2009,"Mario & Luigi: Bowser's Inside Story",0]
+].map(([name, species, role, series, platform, year, game, mk8]) => ({ name, species, role, series, platform, year, game, mk8: !!mk8 }));
+
+const MAX_TRIES = 6;
+const HINT1_AFTER = 3, HINT2_AFTER = 5;
+const YEAR_NEAR = 3;
+
+const $ = id => document.getElementById(id);
+const el = { guess: $('guess'), send: $('send'), suggest: $('suggest'), msg: $('msg'), board: $('board'), empty: $('empty') };
+
+// ---------- Personagem do dia: determinístico a partir da data local ----------
+function todayKey(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function dailyIndex(key) {       // hash FNV-1a da data -> índice na base
+  let h = 0x811c9dc5;
+  for (const c of key) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0) % CHARS.length;
+}
+
+// ---------- Estado e armazenamento ----------
+const key = todayKey();
+const target = CHARS[dailyIndex(key)];
+let guesses = [];                // nomes já tentados, em ordem
+let over = false;
+
+const store = {
+  get(k, def) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? def; } catch (e) { return def; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+const DAY_KEY = 'mariotermo:dia:' + key;
+const STATS_KEY = 'mariotermo:stats';
+
+// ---------- Busca (ignora acentos, maiúsculas e pontuação) ----------
+const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+CHARS.forEach(c => { c.key = norm(c.name); c.words = c.name.split(/[\s-]+/).map(norm); });
+const byName = name => CHARS.find(c => c.name === name);
+
+function matches(q) {
+  q = norm(q);
+  if (!q) return [];
+  const free = CHARS.filter(c => !guesses.includes(c.name));
+  const a = free.filter(c => c.key.startsWith(q));
+  const b = free.filter(c => !a.includes(c) && c.words.some(w => w.startsWith(q)));
+  const d = free.filter(c => !a.includes(c) && !b.includes(c) && c.key.includes(q));
+  return [...a, ...b, ...d].slice(0, 6);
+}
+
+// ---------- Silhueta ----------
+// A imagem vem de img/<slug>.png (ex.: "Bowser Jr." -> img/bowser-jr.png). Sem o arquivo, o jogo segue sem silhueta.
+const slug = name => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const art = new Image();
+let artReady = false;
+art.onload = () => { artReady = true; renderArt(); };
+art.src = `img/${slug(target.name)}.png`;
+
+function renderArt() {
+  if (!artReady) return;
+  const won = guesses.includes(target.name);
+  const wrong = guesses.length - (won ? 1 : 0);
+  const box = $('art');
+  box.classList.add('show');
+  if (over || wrong >= HINT1_AFTER) {
+    art.className = over ? '' : 'shadow';
+    art.alt = over ? target.name : 'Silhueta do personagem do dia';
+    art.draggable = false;
+    box.replaceChildren(art);
+  }
+}
+
+// ---------- Comparação ----------
+function compare(c) {
+  const eq = (a, b) => a === b ? 'ok' : '';
+  const diff = target.year - c.year;
+  return [
+    ['Espécie', c.species, eq(c.species, target.species)],
+    ['Papel', c.role, eq(c.role, target.role)],
+    ['Série', c.series, eq(c.series, target.series)],
+    ['Plataforma', c.platform, eq(c.platform, target.platform)],
+    ['Ano', c.year + (diff > 0 ? ' ↑' : diff < 0 ? ' ↓' : ''), diff === 0 ? 'ok' : Math.abs(diff) <= YEAR_NEAR ? 'near' : ''],
+    ['MK8 Deluxe', c.mk8 ? 'Jogável' : 'Não jogável', eq(c.mk8, target.mk8)]
+  ];
+}
+
+// ---------- Interface ----------
+function addGuess(c, n) {
+  el.empty.style.display = 'none';
+  const wrap = document.createElement('div');
+  wrap.className = 'guess';
+  const head = document.createElement('div');
+  head.className = 'gname';
+  head.innerHTML = '<span></span><small></small>';
+  head.firstChild.textContent = c.name;
+  head.lastChild.textContent = `${n}ª tentativa`;
+  const tiles = document.createElement('div');
+  tiles.className = 'tiles';
+  compare(c).forEach(([label, value, cls], i) => {
+    const t = document.createElement('div');
+    t.className = 'tile ' + cls;
+    t.style.animationDelay = (i * 60) + 'ms';
+    const s = document.createElement('small'); s.textContent = label;
+    const b = document.createElement('b'); b.textContent = value;
+    t.append(s, b);
+    tiles.appendChild(t);
+  });
+  wrap.append(head, tiles);
+  el.board.prepend(wrap);        // palpite mais recente no topo
+}
+
+function renderStatus() {
+  const won = guesses.includes(target.name);
+  const wrong = guesses.length - (won ? 1 : 0);
+  over = won || guesses.length >= MAX_TRIES;
+
+  const bar = $('tries'); bar.innerHTML = '';
+  for (let i = 0; i < MAX_TRIES; i++) {
+    const b = document.createElement('i');
+    if (i < guesses.length) b.className = (won && i === guesses.length - 1) ? 'win' : 'used';
+    bar.appendChild(b);
+  }
+  $('triesText').textContent = over ? 'Fim de jogo' : `Tentativa ${guesses.length + 1} de ${MAX_TRIES}`;
+  $('poolText').textContent = `${CHARS.length} personagens`;
+
+  const h1 = $('hint1'), h2 = $('hint2');
+  if (over || wrong >= HINT1_AFTER) { h1.className = 'on'; h1.innerHTML = 'Dica 1: o nome começa com <b></b>' + (artReady ? ' (silhueta revelada)' : ''); h1.querySelector('b').textContent = target.name[0]; }
+  else h1.textContent = `Dica 1: liberada após ${HINT1_AFTER} erros (faltam ${HINT1_AFTER - wrong})`;
+  if (over || wrong >= HINT2_AFTER) { h2.className = 'on'; h2.innerHTML = 'Dica 2: estreou em <b></b>'; h2.querySelector('b').textContent = target.game; }
+  else h2.textContent = `Dica 2: liberada após ${HINT2_AFTER} erros (faltam ${HINT2_AFTER - wrong})`;
+
+  renderArt();
+  if (over) finish(won);
+}
+
+function finish(won) {
+  el.guess.disabled = el.send.disabled = true;
+  el.guess.placeholder = 'Volte amanhã';
+  el.guess.blur();
+
+  // Estatísticas: cada dia é contado uma única vez
+  const st = store.get(STATS_KEY, { played: 0, wins: 0, streak: 0, best: 0, last: null });
+  if (st.last !== key) {
+    st.played++;
+    if (won) { st.wins++; st.streak++; st.best = Math.max(st.best, st.streak); } else st.streak = 0;
+    st.last = key;
+    store.set(STATS_KEY, st);
+  }
+  $('stPlayed').textContent = st.played;
+  $('stWin').textContent = (st.played ? Math.round(st.wins / st.played * 100) : 0) + '%';
+  $('stStreak').textContent = st.streak;
+  $('stBest').textContent = st.best;
+
+  $('resTitle').textContent = won ? `Acertou! É ${target.name}.` : `Não foi dessa vez. Era ${target.name}.`;
+  const p = $('resText');
+  p.textContent = (won ? `Você descobriu em ${guesses.length} de ${MAX_TRIES} tentativas. ` : '') +
+    `Estreia: ${target.game} (${target.platform}, ${target.year}).`;
+  $('result').classList.add('show');
+}
+
+function setMsg(t) { el.msg.textContent = t; }
+
+let active = -1;
+function renderSuggest() {
+  el.suggest.innerHTML = '';
+  active = -1;
+  matches(el.guess.value).forEach(c => {
+    const li = document.createElement('li');
+    li.textContent = c.name;
+    li.addEventListener('pointerdown', ev => ev.preventDefault());   // mantém o foco (e o teclado) no campo
+    li.addEventListener('click', () => { el.guess.value = c.name; submit(); });
+    el.suggest.appendChild(li);
+  });
+}
+el.guess.addEventListener('input', () => { setMsg(''); renderSuggest(); });
+el.guess.addEventListener('focus', renderSuggest);
+el.guess.addEventListener('blur', () => setTimeout(() => el.suggest.innerHTML = '', 150));
+el.guess.addEventListener('keydown', ev => {
+  const items = [...el.suggest.children];
+  if (!items.length || (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp')) return;
+  ev.preventDefault();
+  active = (active + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items.forEach((li, i) => li.classList.toggle('active', i === active));
+  el.guess.value = items[active].textContent;
+});
+
+function submit() {
+  if (over) return;
+  const q = norm(el.guess.value);
+  if (!q) return;
+  let pick = CHARS.find(c => c.key === q);
+  if (pick && guesses.includes(pick.name)) return setMsg('Você já tentou esse personagem.');
+  if (!pick) { const m = matches(q); if (m.length === 1) pick = m[0]; }
+  if (!pick) return setMsg('Personagem não encontrado. Toque em um nome da lista.');
+
+  guesses.push(pick.name);
+  store.set(DAY_KEY, guesses);
+  addGuess(pick, guesses.length);
+  el.guess.value = '';
+  el.suggest.innerHTML = '';
+  setMsg('');
+  renderStatus();
+}
+$('form').addEventListener('submit', ev => { ev.preventDefault(); submit(); });
+
+// ---------- Compartilhar ----------
+$('share').addEventListener('click', async () => {
+  const won = guesses.includes(target.name);
+  const emoji = cls => cls === 'ok' ? '🟩' : cls === 'near' ? '🟨' : '⬛';
+  const lines = guesses.map(n => compare(byName(n)).map(t => emoji(t[2])).join(''));
+  const text = `MarioTermo ${key} — ${won ? guesses.length : 'X'}/${MAX_TRIES}\n${lines.join('\n')}`;
+  const btn = $('share');
+  try {
+    if (navigator.share) await navigator.share({ text });        // menu nativo de compartilhamento no celular
+    else {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copiado!';
+      setTimeout(() => btn.textContent = 'Compartilhar resultado', 1500);
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;                    // usuário fechou o menu
+    const box = $('shareBox'); box.style.display = 'block'; box.value = text; box.select();
+  }
+});
+
+// ---------- Ajuda ----------
+const modal = $('modal');
+$('helpBtn').addEventListener('click', () => modal.classList.add('show'));
+$('closeHelp').addEventListener('click', () => modal.classList.remove('show'));
+modal.addEventListener('click', ev => { if (ev.target === modal) modal.classList.remove('show'); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') modal.classList.remove('show'); });
+
+// ---------- Contagem regressiva ----------
+function tick() {
+  const now = new Date();
+  if (todayKey(now) !== key) return location.reload();   // virou o dia
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const s = Math.max(0, Math.floor((next - now) / 1000));
+  const p = n => String(n).padStart(2, '0');
+  $('countdown').textContent = `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
+}
+
+// ---------- Início ----------
+$('date').textContent = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+tick(); setInterval(tick, 1000);
+
+const saved = store.get(DAY_KEY, []);
+guesses = (Array.isArray(saved) ? [...new Set(saved)] : []).filter(byName).slice(0, MAX_TRIES);
+guesses.forEach((n, i) => addGuess(byName(n), i + 1));
+renderStatus();
+if (!store.get('mariotermo:viu-ajuda', false)) { modal.classList.add('show'); store.set('mariotermo:viu-ajuda', true); }
+</script>
+</body>
+</html>
